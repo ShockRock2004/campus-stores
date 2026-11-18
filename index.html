@@ -8,131 +8,90 @@
       name="description"
       content="Work a shift at a fictional campus equipment desk in this interactive product engineering exercise."
     />
+    <script>
+      // Light mode by default; the header toggle still switches and remembers the choice.
+      try { if (!localStorage.getItem("ion:mode")) localStorage.setItem("ion:mode", "light"); } catch (e) {}
+    </script>
+    <script src="./ion/ion-mode.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Geist+Mono:wght@100..900&display=swap"
+    />
+    <link rel="stylesheet" href="./ion/ion.css" />
     <link rel="stylesheet" href="./styles.css" />
-    <script defer src="./app.js"></script>
   </head>
   <body>
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="0"
-      height="0"
-      aria-hidden="true"
-      class="icon-library"
-    >
-      <symbol id="icon-package-open" viewBox="0 0 24 24">
-        <path d="M12 22v-9" />
-        <path
-          d="M15.17 2.21a1.67 1.67 0 0 1 1.63 0L21 4.57a1.93 1.93 0 0 1 0 3.36L8.82 14.79a1.655 1.655 0 0 1-1.64 0L3 12.43a1.93 1.93 0 0 1 0-3.36z"
-        />
-        <path
-          d="M20 13v3.87a2.06 2.06 0 0 1-1.11 1.83l-6 3.08a1.93 1.93 0 0 1-1.78 0l-6-3.08A2.06 2.06 0 0 1 4 16.87V13"
-        />
-        <path
-          d="M21 12.43a1.93 1.93 0 0 0 0-3.36L8.83 2.2a1.64 1.64 0 0 0-1.63 0L3 4.57a1.93 1.93 0 0 0 0 3.36l12.18 6.86a1.636 1.636 0 0 0 1.63 0z"
-        />
-      </symbol>
-      <symbol id="icon-package" viewBox="0 0 24 24">
-        <path
-          d="M11 21.73a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73z"
-        />
-        <path d="M12 22V12" />
-        <polyline points="3.29 7 12 12 20.71 7" />
-        <path d="m7.5 4.27 9 5.15" />
-      </symbol>
-      <symbol id="icon-clipboard-list" viewBox="0 0 24 24">
-        <rect width="8" height="4" x="8" y="2" rx="1" ry="1" />
-        <path
-          d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"
-        />
-        <path d="M12 11h4" />
-        <path d="M12 16h4" />
-        <path d="M8 11h.01" />
-        <path d="M8 16h.01" />
-      </symbol>
-      <symbol id="icon-book-open" viewBox="0 0 24 24">
-        <path d="M12 7v14" />
-        <path
-          d="M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z"
-        />
-      </symbol>
-      <symbol id="icon-messages-square" viewBox="0 0 24 24">
-        <path
-          d="M16 10a2 2 0 0 1-2 2H6.828a2 2 0 0 0-1.414.586l-2.202 2.202A.71.71 0 0 1 2 14.286V4a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"
-        />
-        <path
-          d="M20 9a2 2 0 0 1 2 2v10.286a.71.71 0 0 1-1.212.502l-2.202-2.202A2 2 0 0 0 17.172 19H10a2 2 0 0 1-2-2v-1"
-        />
-      </symbol>
-    </svg>
-    <main>
-      <div id="campus-stores">
-        <div class="examstrip">
-          <span>Product Engineer practical</span>
-          <details>
-            <summary>Candidate brief</summary>
-            <div class="briefcopy">
-              <h2>Would you keep this product?</h2>
-              <p>
-                Work a shift at the campus media desk. Get the Film Society’s
-                kit out for its screening, handle the return, and leave the next
-                shift enough information to finish the job. Use the time control
-                to move the story forward.
-              </p>
-              <p>
-                Show one moment the product handles well and one moment you
-                would change. Use a specific action or decision from your shift
-                as evidence for each.
-              </p>
-              <p>
-                Sketch or prototype your change. Walk us through the same job
-                using it, explain what you would keep, and name one observation
-                at a real counter that would tell you whether it helped.
-              </p>
-              <p>
-                Use any tools you like, including AI assistants, web search,
-                and design or coding tools.
-              </p>
-            </div>
-          </details>
-        </div>
-        <header class="mast">
-          <div class="brandblock">
-            <div class="brandmark" aria-hidden="true">
-              <svg aria-hidden="true" class="store-icon">
-                <use href="#icon-package-open"></use>
-              </svg>
-            </div>
-            <div>
-              <h1>Campus Stores</h1>
-              <div class="muted">Media equipment desk</div>
+    <div id="campus-stores" class="ion-shell" data-sidebar-shell>
+      <aside class="ion-sidebar" data-sidebar aria-label="Campus Stores">
+        <div class="ion-sidebar__panel">
+          <div class="ion-sidebar__header">
+            <div class="ion-sidebar__brand">
+              <span class="ion-sidebar__logo"><i data-lucide="package-open"></i></span>
+              <span class="ion-sidebar__brand-name">Campus Stores</span>
+              <button class="ion-sidebar__close" type="button" data-sidebar-close aria-label="Close sidebar"><i data-lucide="x"></i></button>
             </div>
           </div>
-          <div class="clock">
-            <small>Desk time</small><strong data-clock></strong>
+          <nav class="ion-sidebar__content" aria-label="Store records">
+            <div class="ion-sidebar__group">
+              <div class="ion-sidebar__group-label">Media equipment desk</div>
+              <ul class="ion-sidebar__menu">
+                <li><button class="ion-sidebar__item" type="button" data-tab="Today"><span class="ion-sidebar__icon"><i data-lucide="layout-dashboard"></i></span><span class="ion-sidebar__label">Today</span><span class="ion-sidebar__badge" data-out-count title="Items out"></span></button></li>
+                <li><button class="ion-sidebar__item" type="button" data-tab="Requests"><span class="ion-sidebar__icon"><i data-lucide="clipboard-list"></i></span><span class="ion-sidebar__label">Requests</span></button></li>
+                <li><button class="ion-sidebar__item" type="button" data-tab="Returns"><span class="ion-sidebar__icon"><i data-lucide="scan-barcode"></i></span><span class="ion-sidebar__label">Returns</span></button></li>
+                <li><button class="ion-sidebar__item" type="button" data-tab="Inventory"><span class="ion-sidebar__icon"><i data-lucide="package"></i></span><span class="ion-sidebar__label">Inventory</span></button></li>
+                <li><button class="ion-sidebar__item" type="button" data-tab="Desk book"><span class="ion-sidebar__icon"><i data-lucide="messages-square"></i></span><span class="ion-sidebar__label">Desk book</span></button></li>
+              </ul>
+            </div>
+            <div class="ion-sidebar__group">
+              <div class="ion-sidebar__group-label">Product Engineer practical</div>
+              <ul class="ion-sidebar__menu">
+                <li><button class="ion-sidebar__item" type="button" data-tab="Candidate brief"><span class="ion-sidebar__icon"><i data-lucide="file-text"></i></span><span class="ion-sidebar__label">Candidate brief</span></button></li>
+              </ul>
+            </div>
+          </nav>
+          <div class="ion-sidebar__footer cs-sidefoot" data-tour="replay">
+            <ul class="ion-sidebar__menu">
+              <li><button class="cs-sideaction" type="button" data-action="tour"><span class="ion-sidebar__icon"><i data-lucide="route"></i></span><span class="ion-sidebar__label">Walkthrough</span></button></li>
+              <li><button class="cs-sideaction" type="button" data-action="restart"><span class="ion-sidebar__icon"><i data-lucide="rotate-ccw"></i></span><span class="ion-sidebar__label">Restart sample shift</span></button></li>
+            </ul>
+          </div>
+        </div>
+      </aside>
+
+      <div class="ion-shell__inset">
+        <header class="ion-shell__header ion-shell__header--sticky">
+          <button class="ion-shell__trigger" type="button" data-sidebar-trigger aria-label="Toggle sidebar"><i data-lucide="panel-left"></i></button>
+          <span class="ion-shell__divider"></span>
+          <p class="ion-shell__title" data-sidebar-title>Requests</p>
+          <div class="ion-shell__end">
+            <span class="cs-clock"><span class="t-label t-muted">Desk time</span><strong data-clock></strong></span>
+            <button type="button" class="ion-btn ion-btn--sm ion-btn--blue" data-action="advance" data-tour="advance"><span class="cs-wide" data-advance-label></span><span class="cs-narrow">Next</span><i data-lucide="arrow-right"></i></button>
+            <button data-theme-toggle data-size="sm"></button>
           </div>
         </header>
-        <aside class="shift">
-          <div>
-            <b data-shift-title></b>
-            <p data-shift></p>
+        <main class="cs-main">
+          <div class="cs-notice">
+            <span role="status" aria-live="polite" data-status></span>
+            <button type="button" class="ion-btn ion-btn--sm ion-btn--ghost" data-action="undo" hidden>Undo</button>
           </div>
-          <button type="button" data-action="advance"></button>
-        </aside>
-        <div class="shell">
-          <nav aria-label="Store records" data-nav></nav>
-          <section
-            class="page"
-            data-page
-            aria-label="Selected register"
-          ></section>
-        </div>
-        <div class="statusbar">
-          <span role="status" aria-live="polite" data-status></span
-          ><button type="button" data-action="restart">
-            Restart sample shift
-          </button>
-        </div>
+          <div data-confirm></div>
+          <div class="cs-stack" data-page aria-label="Selected register"></div>
+        </main>
       </div>
-    </main>
+
+      <dialog class="cs-modal" data-modal aria-labelledby="cs-modal-title"></dialog>
+
+      <div class="cs-tour" data-tour-layer hidden>
+        <div class="cs-tour__spot" aria-hidden="true"></div>
+        <div class="cs-tour__card" role="dialog" aria-modal="true" aria-labelledby="cs-tour-title" tabindex="-1" data-tour-card></div>
+      </div>
+    </div>
+
+    <script src="./third-party/lucide.min.js"></script>
+    <script>lucide.createIcons();</script>
+    <script src="./ion/ion.js"></script>
+    <script src="./app.js"></script>
   </body>
 </html>
