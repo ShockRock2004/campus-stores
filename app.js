@@ -117,6 +117,9 @@
     followUp: [],
     filter: "All items",
     confirmAdvance: false,
+    tour: { step: 0 }, // walkthrough open at this step of the current scene, or null
+    toured: [0], // scenes whose walkthrough has already started once
+    history: [], // screens visited before this one, for the Back link
     loans: [
       {
         num: 401,
@@ -176,12 +179,13 @@
   const esc = (x) =>
     String(x).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
   const icon = (name) => '<i data-lucide="' + name + '"></i>';
-  const card = (inner, kind = "ion-box") =>
-    '<div class="' + kind + '"><div class="ion-box__inner" data-glow><div class="ion-box__mask"></div><div class="ion-box__content">' +
+  const card = (inner, kind = "ion-box", attrs = "") =>
+    '<div class="' + kind + '"' + attrs + '><div class="ion-box__inner" data-glow><div class="ion-box__mask"></div><div class="ion-box__content">' +
     inner +
     '</div><div class="ion-box__spot"></div><div class="ion-box__rim"></div></div></div>';
+  // "primary" marks the one main action in a view; it wears Ion's blue.
   const btn = (label, action, val = "", style = "ghost", extra = "") =>
-    '<button type="button" class="ion-btn ion-btn--sm ion-btn--' + style + '" data-action="' + action + '" data-val="' +
+    '<button type="button" class="ion-btn ion-btn--sm ion-btn--' + (style === "primary" ? "blue" : style) + '" data-action="' + action + '" data-val="' +
     esc(val) + '"' + extra + ">" + label + "</button>";
   const chip = (label, kind = "neutral") => '<span class="cs-chip cs-chip--' + kind + '">' + esc(label) + "</span>";
   const itemName = (a) =>
@@ -206,7 +210,97 @@
   const progressBar = (p) => '<span class="cs-bar" aria-hidden="true"><span style="width:' + Math.round(p.ratio * 100) + '%"></span></span>';
   const reqLink = (r) => btn(esc(r.event) + " " + icon("arrow-right"), "open-req", r.id, "ghost", ' aria-label="Open ' + esc(r.event) + '"');
 
-  /* ---------- Story card (top of every screen) ---------- */
+  /* ---------- Story: walkthrough per scene + time control ---------- */
+  const tours = [
+    [
+      { title: "Pickup at the counter", text: shifts[0].text },
+      { tab: "Today", target: '[data-tour="pickups"]', title: "Pickups waiting", text: "Approved requests that haven’t left the desk show up here. The Film Society’s screening kit is first." },
+      { tab: "Today", target: '[data-tour="handout-RQ-214"]', title: "Hand out the whole kit", text: "Open the request to hand out everything in one go. The app suggests Kabir from Isha’s message, picks units from the shelf and keeps Isha responsible." },
+      { target: '[data-tour="advance"]', title: "Move the story on", text: "Once Kabir has his kit, move the desk clock to return time." },
+    ],
+    [
+      { title: "The kit comes back in pieces", text: shifts[1].text },
+      { tab: "Take back", target: '[data-tour="code"]', title: "Take back by item code", text: "Type the code on each item Kabir hands you (PR-04 and SP-02), then confirm once." },
+      { tab: "Take back", target: '[data-tour="out"]', title: "No handover note needed", text: "The adapter is still out. After the return, the app asks who has it and when it’s coming back, so the morning shift sees it on the loan." },
+      { target: '[data-tour="advance"]', title: "Move to next morning", text: "When the loan shows who has the adapter, move the clock on." },
+    ],
+    [
+      { title: "Morning shift", text: shifts[2].text },
+      { tab: "Today", target: '[data-tour="out"]', title: "See what’s outstanding", text: "Nothing to read through. Each item still out shows who has it and when it’s due back." },
+      { target: '.ion-sidebar__item[data-tab="Take back"]', title: "Close the right loan", text: "Check the code on Leela’s adapter and enter it in Take back. If it’s the other adapter, the app tells you." },
+      { target: '[data-tour="replay"]', title: "Replay any time", text: "Open this walkthrough again or restart the sample shift from here." },
+    ],
+  ];
+  function confirmBanner() {
+    if (!s.confirmAdvance) return "";
+    return '<div class="cs-warn">' + icon("triangle-alert") + "<p>" + esc(s.confirmAdvance) + "</p>" +
+      '<div class="cs-actions">' + btn("Stay and fix it", "stay", "", "primary") + btn("Move on anyway", "advance", "force") + "</div></div>";
+  }
+  function goToStep(step) {
+    const st = tours[s.phase][step];
+    s.tour = { step };
+    if (st.tab && st.tab !== s.tab) go(st.tab);
+  }
+  const visible = (el) => {
+    if (!el) return false;
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 && r.right > 0 && r.left < innerWidth;
+  };
+  function placeTour() {
+    const layer = q("[data-tour-layer]");
+    if (!s.tour || layer.hidden) return;
+    const st = tours[s.phase][s.tour.step];
+    const target = st.target && root.querySelector(st.target);
+    const spot = layer.querySelector(".cs-tour__spot"), cardEl = layer.querySelector("[data-tour-card]");
+    const on = visible(target);
+    layer.classList.toggle("is-center", !on);
+    if (!on) {
+      cardEl.style.cssText = "";
+      return;
+    }
+    const pad = 8, r = target.getBoundingClientRect();
+    Object.assign(spot.style, { top: r.top - pad + "px", left: r.left - pad + "px", width: r.width + pad * 2 + "px", height: r.height + pad * 2 + "px" });
+    const cw = cardEl.offsetWidth, ch = cardEl.offsetHeight, gap = 16;
+    let top = r.bottom + pad + gap;
+    if (top + ch > innerHeight - 12) top = Math.max(12, r.top - pad - gap - ch);
+    const left = Math.min(Math.max(12, r.left + r.width / 2 - cw / 2), innerWidth - cw - 12);
+    cardEl.style.cssText = "top:" + top + "px;left:" + left + "px";
+  }
+  function renderTour() {
+    const layer = q("[data-tour-layer]");
+    if (!s.tour) {
+      layer.hidden = true;
+      return;
+    }
+    const steps = tours[s.phase], st = steps[s.tour.step], last = s.tour.step === steps.length - 1;
+    q("[data-tour-card]").innerHTML =
+      '<span class="t-label t-muted">' + esc(shifts[s.phase].time) + " · Scene " + (s.phase + 1) + " of 3</span>" +
+      '<h3 class="ion-box__title" id="cs-tour-title">' + esc(st.title) + "</h3><p>" + esc(st.text) + "</p>" +
+      '<div class="cs-tour__foot"><span class="cs-tour__dots" aria-label="Step ' + (s.tour.step + 1) + " of " + steps.length + '">' +
+      steps.map((_, i) => "<i" + (i === s.tour.step ? ' class="is-on"' : "") + "></i>").join("") + "</span>" +
+      '<div class="cs-actions">' + (last ? "" : btn("Skip", "tour-close")) + (s.tour.step ? btn("Back", "tour-back") : "") +
+      btn(last ? "Done" : "Next", last ? "tour-close" : "tour-next", "", "primary") + "</div></div>";
+    const wasHidden = layer.hidden;
+    layer.hidden = false;
+    const target = st.target && root.querySelector(st.target);
+    if (visible(target)) target.scrollIntoView({ block: "center", behavior: "instant" });
+    placeTour();
+    requestAnimationFrame(placeTour);
+    if (wasHidden || !layer.contains(document.activeElement)) q("[data-tour-card]").focus({ preventScroll: true });
+  }
+  addEventListener("resize", placeTour);
+  addEventListener("scroll", placeTour, { passive: true });
+  document.addEventListener("keydown", (e) => {
+    if (!s.tour) return;
+    const steps = tours[s.phase];
+    if (e.key === "Escape") s.tour = null;
+    else if (e.key === "ArrowRight" && s.tour.step < steps.length - 1) goToStep(s.tour.step + 1);
+    else if (e.key === "ArrowLeft" && s.tour.step > 0) goToStep(s.tour.step - 1);
+    else return;
+    e.preventDefault();
+    commit();
+  });
+
   function advanceWarning() {
     const r = getReq("RQ-214"), loan = loanFor(r.id);
     if (s.phase === 0) {
@@ -221,20 +315,6 @@
     }
     return "";
   }
-  function storyCard() {
-    const sh = shifts[s.phase];
-    let actions = "";
-    if (sh.next && s.confirmAdvance)
-      actions =
-        '<div class="cs-warn">' + icon("triangle-alert") + "<p>" + esc(s.confirmAdvance) + "</p></div>" +
-        '<div class="cs-actions">' + btn("Stay and fix it", "stay", "", "primary") + btn("Move on anyway", "advance", "force") + "</div>";
-    else if (sh.next) actions = '<div class="cs-actions">' + btn(esc(sh.next) + " " + icon("arrow-right"), "advance", "", "primary") + "</div>";
-    else actions = '<p class="ion-box__text">End of the story. Use <b>Restart sample shift</b> in the sidebar to play again.</p>';
-    return card(
-      '<div class="cs-story"><div><span class="t-label t-muted">' + esc(sh.time) + " · Scene " + (s.phase + 1) + " of 3</span>" +
-        '<h3 class="ion-box__title">' + esc(sh.title) + '</h3><p class="cs-story__text">' + esc(sh.text) + "</p></div>" + actions + "</div>"
-    );
-  }
 
   /* ---------- Today ---------- */
   function today() {
@@ -243,13 +323,14 @@
     const waiting = requests.filter((r) => !loanFor(r.id));
     const stat = (n, label, kind = "") => '<div class="cs-stat"><div class="ion-stat' + (kind ? " cs-stat--" + kind : "") + '">' + n + '</div><span class="t-label t-muted">' + label + "</span></div>";
     let html = head("Today at the <span class=\"ion-accent\">counter</span>", "Everything that needs attention, in one place.");
-    html += card('<div class="cs-stats">' + stat(waiting.length, "Pickups waiting") + stat(out.length, "Items out") + stat(late, "Overdue", late ? "danger" : "") + "</div>", "ion-panel");
+    html += card('<div class="cs-stats">' + stat(waiting.length, "Pickups waiting") + stat(out.length, "Items out", "accent") + stat(late, "Overdue", late ? "danger" : "") + "</div>", "ion-panel");
     html += card(
       boxHead("Pickups waiting", "Approved requests that haven’t been handed out.") +
         table("2fr 1.4fr 1fr 1.2fr", ["Request", "Club", "Return by", ""],
-          waiting.map((r) => ["<strong>" + esc(r.event) + '</strong><small class="cs-sub">' + r.id + "</small>", esc(r.club), esc(r.due), btn("Hand out " + icon("arrow-right"), "open-req", r.id, "primary")]),
+          waiting.map((r) => ["<strong>" + esc(r.event) + '</strong><small class="cs-sub">' + r.id + "</small>", esc(r.club), esc(r.due), btn("Hand out " + icon("arrow-right"), "open-req", r.id, "ghost cs-accent", ' data-tour="handout-' + r.id + '"')]),
           "No pickups waiting."),
-      "ion-panel"
+      "ion-panel",
+      ' data-tour="pickups"'
     );
     html += card(
       boxHead("Out right now", "Who has each item and when it’s due back. Overdue items first.") +
@@ -259,7 +340,8 @@
             return [itemName(getAsset(line.asset)), reqLink(r), esc(line.holder), esc(dueOf(loan, line)) + (isLate(loan, line) ? " " + chip("Overdue", "danger") : "")];
           }),
           "Everything is back on the shelf."),
-      "ion-panel"
+      "ion-panel",
+      ' data-tour="out"'
     );
     return html;
   }
@@ -296,7 +378,7 @@
           "</div></div>";
       }).join("") +
       errorFor("holder") +
-      '<div class="cs-actions"><button type="submit" class="ion-btn ion-btn--sm ion-btn--primary">Save</button>' +
+      '<div class="cs-actions"><button type="submit" class="ion-btn ion-btn--sm ion-btn--blue">Save</button>' +
       btn(kind === "follow" ? "Not now" : "Cancel", kind === "follow" ? "skip-follow" : "cancel-edit") + "</div></form>"
     );
   }
@@ -320,7 +402,7 @@
     }).join("") + "</div>";
     const missing = d.units.filter((u) => !u).length;
     html += errorFor("issue") +
-      '<div class="cs-actions"><button type="submit" class="ion-btn ion-btn--sm ion-btn--primary">' +
+      '<div class="cs-actions"><button type="submit" class="ion-btn ion-btn--sm ion-btn--blue">' +
       (s.warned && missing ? "Hand out " + (r.items.length - missing) + " of " + r.items.length + " anyway" : "Hand out kit") + "</button>" +
       btn("Cancel", "cancel-issue") + "</div></form>";
     return html;
@@ -329,8 +411,7 @@
   function requestDetail(r) {
     const loan = loanFor(r.id);
     const p = progress(r);
-    let html = '<div class="cs-back">' + btn("All requests", "close") + "</div>";
-    html += card(
+    let html = card(
       '<span class="t-label t-muted">' + r.id + " · Approved</span>" +
         boxHead(esc(r.event), esc(r.club), chip(p.label, p.kind)) +
         '<dl class="cs-facts">' +
@@ -383,7 +464,7 @@
         "ion-panel cs-follow"
       );
     }
-    let form = '<form class="cs-codeform" data-code><label class="cs-field"><span class="ion-field-label">Item code</span>' +
+    let form = '<form class="cs-codeform" data-code data-tour="code"><label class="cs-field"><span class="ion-field-label">Item code</span>' +
       '<input class="cs-input cs-input--code" name="code" autocomplete="off" spellcheck="false" placeholder="e.g. PR-04" /></label>' +
       '<button type="submit" class="ion-btn ion-btn--sm ion-btn--ghost">Add item</button></form>' + errorFor("code");
     if (s.basket.length) {
@@ -403,7 +484,7 @@
           }), "") +
         '<form data-confirm-return class="cs-confirm"><div class="cs-form">' +
         select("returnedBy", "Brought back by", options, s.returnedBy || [...holders][0]) + "</div>" + errorFor("return") +
-        '<div class="cs-actions"><button type="submit" class="ion-btn ion-btn--sm ion-btn--primary">Confirm return of ' + s.basket.length + " item" + (s.basket.length > 1 ? "s" : "") + "</button></div></form>";
+        '<div class="cs-actions"><button type="submit" class="ion-btn ion-btn--sm ion-btn--blue">Confirm return of ' + s.basket.length + " item" + (s.basket.length > 1 ? "s" : "") + "</button></div></form>";
     }
     html += card(boxHead("Items being returned", s.basket.length ? "" : "Add each item the person hands you, then confirm once.") + form, "ion-panel");
     html += card(
@@ -411,7 +492,8 @@
         table("2fr 1.8fr 1.2fr 1fr", ["Item", "Request", "With", "Due back"],
           openLines().map(({ loan, line }) => [itemName(getAsset(line.asset)), esc(getReq(loan.req).event), esc(line.holder), esc(dueOf(loan, line)) + (isLate(loan, line) ? " " + chip("Overdue", "danger") : "")]),
           "Everything is back on the shelf."),
-      "ion-panel"
+      "ion-panel",
+      ' data-tour="out"'
     );
     return html;
   }
@@ -477,17 +559,24 @@
     const outCount = openLines().length;
     q("[data-out-count]").textContent = outCount || "";
     const page = q("[data-page]");
-    page.innerHTML = (s.tab === "Candidate brief" ? "" : storyCard()) + screens[s.tab]();
+    page.innerHTML = backBar() + screens[s.tab]();
+    q("[data-confirm]").innerHTML = confirmBanner();
+    const next = shifts[s.phase].next;
+    const advance = q('.ion-shell__header [data-action="advance"]');
+    advance.hidden = !next;
+    advance.title = next || "";
+    q("[data-advance-label]").textContent = next || "";
     q("[data-status]").textContent = s.notice;
     const undo = q('[data-action="undo"]');
     undo.hidden = !s.undo;
     if (window.lucide) lucide.createIcons();
     if (window.Ion) Ion.init(page);
-    if (s.focus) {
+    if (s.focus && !s.tour) {
       const el = q(s.focus);
       if (el) el.focus();
-      s.focus = "";
     }
+    s.focus = "";
+    renderTour();
   }
   function commit(msg) {
     if (msg) s.notice = msg;
@@ -504,6 +593,33 @@
   const reset = () => {
     s.error = null;
   };
+
+  /* ---------- Navigation history (Back link on every screen) ---------- */
+  const viewName = (v) => (v.selected ? getReq(v.selected).event : v.tab);
+  function setView(tab, selected = "") {
+    s.tab = tab;
+    s.selected = selected;
+    s.issuing = false;
+    s.editLine = "";
+  }
+  function go(tab, selected = "") {
+    if (s.tab === tab && s.selected === selected) return;
+    s.history.push({ tab: s.tab, selected: s.selected });
+    if (s.history.length > 20) s.history.shift();
+    setView(tab, selected);
+  }
+  // Where Back leads: the screen you came from, else the request list (from a request), else Today.
+  function backTarget() {
+    const last = s.history[s.history.length - 1];
+    if (last) return last;
+    if (s.selected) return { tab: s.tab, selected: "" };
+    if (s.tab !== "Today") return { tab: "Today", selected: "" };
+    return null;
+  }
+  function backBar() {
+    const t = backTarget();
+    return t ? '<div class="cs-back"><button type="button" class="cs-backlink" data-action="back">' + icon("arrow-left") + "Back to " + esc(viewName(t)) + "</button></div>" : "";
+  }
 
   /* ---------- Actions ---------- */
   function addCode(raw) {
@@ -613,8 +729,24 @@
         if (s.phase < 2) s.phase++;
         s.undo = null;
         s.notice = "Desk time is now " + shifts[s.phase].time + ".";
+        if (!s.toured.includes(s.phase)) {
+          s.toured.push(s.phase);
+          goToStep(0);
+        }
         break;
       }
+      case "tour":
+        goToStep(0);
+        break;
+      case "tour-next":
+        if (s.tour) goToStep(Math.min(s.tour.step + 1, tours[s.phase].length - 1));
+        break;
+      case "tour-back":
+        if (s.tour) goToStep(Math.max(s.tour.step - 1, 0));
+        break;
+      case "tour-close":
+        s.tour = null;
+        break;
       case "stay":
         s.confirmAdvance = false;
         break;
@@ -626,16 +758,15 @@
         s.issuing = false;
         s.notice = "Undone. The records are back to how they were.";
         return commit();
-      case "close":
-        s.selected = "";
-        s.issuing = false;
-        s.editLine = "";
+      case "back": {
+        const t = backTarget();
+        if (!t) return;
+        s.history.pop();
+        setView(t.tab, t.selected);
         break;
+      }
       case "open-req":
-        s.tab = "Requests";
-        s.selected = v;
-        s.issuing = false;
-        s.editLine = "";
+        go("Requests", v);
         break;
       case "issue": {
         const r = getReq(v);
@@ -676,10 +807,7 @@
     const tab = e.detail.item.dataset.tab;
     if (!tabs.includes(tab)) return;
     reset();
-    s.tab = tab;
-    s.selected = "";
-    s.issuing = false;
-    s.editLine = "";
+    go(tab);
     commit();
   });
 
@@ -734,6 +862,8 @@
       filter: ["All items", "On shelf", "On loan", "In repair"].includes(d.filter) ? d.filter : "All items",
       loans: d.loans.map((l) => ({ ...l, lines: l.lines.map((x) => ({ ...x })) })),
       notice: "Welcome back. Your sample shift was restored.",
+      tour: null,
+      toured: [0, 1, 2].filter((p) => p <= d.phase || (Array.isArray(d.toured) && d.toured.includes(p))),
     };
     s.followUp = Array.isArray(d.followUp) ? d.followUp.filter((n) => getLoan(n) && getLoan(n).lines.some((l) => !l.back)) : [];
   }

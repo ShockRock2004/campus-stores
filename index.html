@@ -47,8 +47,11 @@
               </ul>
             </div>
           </nav>
-          <div class="ion-sidebar__footer">
-            <button class="ion-btn ion-btn--ghost ion-btn--sm ion-btn--block" type="button" data-action="restart"><span class="cs-restart-label">Restart sample shift</span><i data-lucide="rotate-ccw"></i></button>
+          <div class="ion-sidebar__footer cs-sidefoot" data-tour="replay">
+            <ul class="ion-sidebar__menu">
+              <li><button class="cs-sideaction" type="button" data-action="tour"><span class="ion-sidebar__icon"><i data-lucide="route"></i></span><span class="ion-sidebar__label">Walkthrough</span></button></li>
+              <li><button class="cs-sideaction" type="button" data-action="restart"><span class="ion-sidebar__icon"><i data-lucide="rotate-ccw"></i></span><span class="ion-sidebar__label">Restart sample shift</span></button></li>
+            </ul>
           </div>
         </div>
       </aside>
@@ -60,6 +63,7 @@
           <p class="ion-shell__title" data-sidebar-title>Requests</p>
           <div class="ion-shell__end">
             <span class="cs-clock"><span class="t-label t-muted">Desk time</span><strong data-clock></strong></span>
+            <button type="button" class="ion-btn ion-btn--sm ion-btn--blue" data-action="advance" data-tour="advance"><span class="cs-wide" data-advance-label></span><span class="cs-narrow">Next</span><i data-lucide="arrow-right"></i></button>
             <button data-theme-toggle data-size="sm"></button>
           </div>
         </header>
@@ -68,8 +72,14 @@
             <span role="status" aria-live="polite" data-status></span>
             <button type="button" class="ion-btn ion-btn--sm ion-btn--ghost" data-action="undo" hidden>Undo</button>
           </div>
+          <div data-confirm></div>
           <div class="cs-stack" data-page aria-label="Selected register"></div>
         </main>
+      </div>
+
+      <div class="cs-tour" data-tour-layer hidden>
+        <div class="cs-tour__spot" aria-hidden="true"></div>
+        <div class="cs-tour__card" role="dialog" aria-modal="true" aria-labelledby="cs-tour-title" tabindex="-1" data-tour-card></div>
       </div>
     </div>
 
