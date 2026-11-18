@@ -8,6 +8,10 @@
       name="description"
       content="Work a shift at a fictional campus equipment desk in this interactive product engineering exercise."
     />
+    <script>
+      // Light mode by default; the header toggle still switches and remembers the choice.
+      try { if (!localStorage.getItem("ion:mode")) localStorage.setItem("ion:mode", "light"); } catch (e) {}
+    </script>
     <script src="./ion/ion-mode.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -35,7 +39,7 @@
               <ul class="ion-sidebar__menu">
                 <li><button class="ion-sidebar__item" type="button" data-tab="Today"><span class="ion-sidebar__icon"><i data-lucide="layout-dashboard"></i></span><span class="ion-sidebar__label">Today</span><span class="ion-sidebar__badge" data-out-count title="Items out"></span></button></li>
                 <li><button class="ion-sidebar__item" type="button" data-tab="Requests"><span class="ion-sidebar__icon"><i data-lucide="clipboard-list"></i></span><span class="ion-sidebar__label">Requests</span></button></li>
-                <li><button class="ion-sidebar__item" type="button" data-tab="Take back"><span class="ion-sidebar__icon"><i data-lucide="scan-barcode"></i></span><span class="ion-sidebar__label">Take back</span></button></li>
+                <li><button class="ion-sidebar__item" type="button" data-tab="Returns"><span class="ion-sidebar__icon"><i data-lucide="scan-barcode"></i></span><span class="ion-sidebar__label">Returns</span></button></li>
                 <li><button class="ion-sidebar__item" type="button" data-tab="Inventory"><span class="ion-sidebar__icon"><i data-lucide="package"></i></span><span class="ion-sidebar__label">Inventory</span></button></li>
                 <li><button class="ion-sidebar__item" type="button" data-tab="Desk book"><span class="ion-sidebar__icon"><i data-lucide="messages-square"></i></span><span class="ion-sidebar__label">Desk book</span></button></li>
               </ul>
@@ -76,6 +80,8 @@
           <div class="cs-stack" data-page aria-label="Selected register"></div>
         </main>
       </div>
+
+      <dialog class="cs-modal" data-modal aria-labelledby="cs-modal-title"></dialog>
 
       <div class="cs-tour" data-tour-layer hidden>
         <div class="cs-tour__spot" aria-hidden="true"></div>

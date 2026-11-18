@@ -101,7 +101,7 @@
   ];
   // Minutes from Friday 00:00, so times can be compared.
   const dueAt = { "Fri 8 pm": 1200, "Sat 9 am": 1980, "Sat 10 am": 2040, "Sat noon": 2160 };
-  const tabs = ["Today", "Requests", "Take back", "Inventory", "Desk book", "Candidate brief"];
+  const tabs = ["Today", "Requests", "Returns", "Inventory", "Desk book", "Candidate brief"];
 
   const original = () => ({
     version: 2,
@@ -120,6 +120,8 @@
     tour: { step: 0 }, // walkthrough open at this step of the current scene, or null
     toured: [0], // scenes whose walkthrough has already started once
     history: [], // screens visited before this one, for the Back link
+    mode: "", // how the open request was reached: "handout", "track" or ""
+    focusAsset: "", // item highlighted when a request is opened from Out right now
     loans: [
       {
         num: 401,
@@ -208,7 +210,8 @@
     "</select>" + icon("chevron-down") + "</span></label>";
   const errorFor = (at) => (s.error && s.error.at === at ? '<p class="cs-error" role="alert">' + icon("circle-alert") + "<span>" + esc(s.error.text) + "</span></p>" : "");
   const progressBar = (p) => '<span class="cs-bar" aria-hidden="true"><span style="width:' + Math.round(p.ratio * 100) + '%"></span></span>';
-  const reqLink = (r) => btn(esc(r.event) + " " + icon("arrow-right"), "open-req", r.id, "ghost", ' aria-label="Open ' + esc(r.event) + '"');
+  const reqLink = (r, mode = "", asset = "") =>
+    btn(esc(r.event) + " " + icon("arrow-right"), "open-req", r.id, "ghost", ' data-mode="' + mode + '" data-asset="' + esc(asset) + '" aria-label="Open ' + esc(r.event) + '"');
 
   /* ---------- Story: walkthrough per scene + time control ---------- */
   const tours = [
@@ -220,17 +223,33 @@
     ],
     [
       { title: "The kit comes back in pieces", text: shifts[1].text },
-      { tab: "Take back", target: '[data-tour="code"]', title: "Take back by item code", text: "Type the code on each item Kabir hands you (PR-04 and SP-02), then confirm once." },
-      { tab: "Take back", target: '[data-tour="out"]', title: "No handover note needed", text: "The adapter is still out. After the return, the app asks who has it and when it’s coming back, so the morning shift sees it on the loan." },
+      { tab: "Returns", target: '[data-tour="code"]', title: "Return items by code", text: "Type the code on each item Kabir hands you (PR-04 and SP-02), then confirm once." },
+      { tab: "Returns", target: '[data-tour="out"]', title: "No handover note needed", text: "The adapter is still out. After the return, the app asks who has it and when it’s coming back, so the morning shift sees it on the loan." },
       { target: '[data-tour="advance"]', title: "Move to next morning", text: "When the loan shows who has the adapter, move the clock on." },
     ],
     [
       { title: "Morning shift", text: shifts[2].text },
       { tab: "Today", target: '[data-tour="out"]', title: "See what’s outstanding", text: "Nothing to read through. Each item still out shows who has it and when it’s due back." },
-      { target: '.ion-sidebar__item[data-tab="Take back"]', title: "Close the right loan", text: "Check the code on Leela’s adapter and enter it in Take back. If it’s the other adapter, the app tells you." },
+      { target: '.ion-sidebar__item[data-tab="Returns"]', title: "Close the right loan", text: "Check the code on Leela’s adapter and enter it in Returns. If it’s the other adapter, the app tells you." },
       { target: '[data-tour="replay"]', title: "Replay any time", text: "Open this walkthrough again or restart the sample shift from here." },
     ],
   ];
+  // Remembered outside the sample shift, so Restart doesn't bring the first-visit glow back.
+  const usedKey = "campus-stores.walkthrough-used";
+  let walkthroughUsed = false;
+  try {
+    walkthroughUsed = localStorage.getItem(usedKey) === "1";
+  } catch {
+    // No storage: the glow shows until the button is used in this visit.
+  }
+  function markWalkthroughUsed() {
+    walkthroughUsed = true;
+    try {
+      localStorage.setItem(usedKey, "1");
+    } catch {
+      // Ignore: falls back to this visit only.
+    }
+  }
   function confirmBanner() {
     if (!s.confirmAdvance) return "";
     return '<div class="cs-warn">' + icon("triangle-alert") + "<p>" + esc(s.confirmAdvance) + "</p>" +
@@ -327,7 +346,7 @@
     html += card(
       boxHead("Pickups waiting", "Approved requests that haven’t been handed out.") +
         table("2fr 1.4fr 1fr 1.2fr", ["Request", "Club", "Return by", ""],
-          waiting.map((r) => ["<strong>" + esc(r.event) + '</strong><small class="cs-sub">' + r.id + "</small>", esc(r.club), esc(r.due), btn("Hand out " + icon("arrow-right"), "open-req", r.id, "ghost cs-accent", ' data-tour="handout-' + r.id + '"')]),
+          waiting.map((r) => ["<strong>" + esc(r.event) + '</strong><small class="cs-sub">' + r.id + "</small>", esc(r.club), esc(r.due), btn("Hand out " + icon("arrow-right"), "open-req", r.id, "ghost cs-accent", ' data-mode="handout" data-tour="handout-' + r.id + '"')]),
           "No pickups waiting."),
       "ion-panel",
       ' data-tour="pickups"'
@@ -337,7 +356,7 @@
         table("2fr 1.6fr 1.2fr 1fr", ["Item", "Request", "With", "Due back"],
           out.map(({ loan, line }) => {
             const r = getReq(loan.req);
-            return [itemName(getAsset(line.asset)), reqLink(r), esc(line.holder), esc(dueOf(loan, line)) + (isLate(loan, line) ? " " + chip("Overdue", "danger") : "")];
+            return [itemName(getAsset(line.asset)), reqLink(r, "track", line.asset), esc(line.holder), esc(dueOf(loan, line)) + (isLate(loan, line) ? " " + chip("Overdue", "danger") : "")];
           }),
           "Everything is back on the shelf."),
       "ion-panel",
@@ -387,10 +406,8 @@
     const d = s.draft;
     const suggestion = messages.find((m) => m.req === r.id && m.phase <= s.phase && m.text.includes(d.suggested || "\u0000"));
     let html = boxHead("Hand out kit", "Each approved item is matched to a unit on the shelf. Swap a unit if you pick a different one.");
-    html += '<form data-issue><dl class="cs-facts">' +
-      "<div><dt>Responsible</dt><dd>" + esc(r.owner) + "<small>Filed the request</small></dd></div>" +
-      "<div><dt>Return by</dt><dd>" + esc(r.due) + "<small>Set by the approval</small></dd></div></dl>";
-    html += '<div class="cs-form">' + select("who", "Collected by", members(r.club).map((p) => [p, p + (p === r.owner ? " (requester)" : "")]), d.who, "Choose a club member…") + "</div>";
+    // Responsible and Return by are shown in the People and Dates cards next to this form.
+    html += '<form data-issue><div class="cs-form">' + select("who", "Collected by", members(r.club).map((p) => [p, p + (p === r.owner ? " (requester)" : "")]), d.who, "Choose a club member…") + "</div>";
     if (suggestion) html += '<p class="cs-hint">' + icon("message-square") + "<span>Suggested from " + esc(suggestion.from) + "’s message at " + esc(suggestion.time.split(" · ")[1]) + ": “" + esc(suggestion.text) + "”</span></p>";
     html += '<div class="cs-lines">' + r.items.map((type, i) => {
       const units = assets.filter((a) => a.type === type);
@@ -408,20 +425,37 @@
     return html;
   }
 
-  function requestDetail(r) {
+  // A request opens as a popup with a bento layout. Its title names the task it was opened for.
+  function requestModal(r) {
     const loan = loanFor(r.id);
     const p = progress(r);
-    let html = card(
-      '<span class="t-label t-muted">' + r.id + " · Approved</span>" +
-        boxHead(esc(r.event), esc(r.club), chip(p.label, p.kind)) +
-        '<dl class="cs-facts">' +
+    const focus = s.mode === "track" && s.focusAsset && getAsset(s.focusAsset);
+    const title =
+      s.mode === "handout" ? "Hand out <span class=\"ion-accent\">kit</span>"
+        : s.mode === "track" ? "Out right <span class=\"ion-accent\">now</span>"
+          : esc(r.event);
+    const sub =
+      s.mode === "handout" ? (loan ? "This kit has already been handed out. Here’s where each item is." : "Check the collector and the units, then hand everything out in one go.")
+        : focus ? "Where the " + esc(focus.type) + " " + esc(focus.id) + " is and when it’s due back."
+          : "Everything about this request in one place.";
+    let html =
+      '<div class="cs-modal__head"><div><span class="t-label t-muted">' + r.id + " · " + esc(r.club) + "</span>" +
+      '<h2 class="t-h4" id="cs-modal-title">' + title + '</h2><p class="t-muted">' + sub + "</p></div>" +
+      '<button type="button" class="ion-icon-btn" data-action="close-modal" aria-label="Close">' + icon("x") + "</button></div>";
+    const cells = [];
+    cells.push(card(
+      boxHead(esc(r.event), esc(r.club), chip(p.label, p.kind)) +
+        '<div class="cs-progress"><strong>' + esc(p.text) + "</strong>" + progressBar(p) + "</div>" +
+        '<p class="cs-hint">' + icon("info") + "<span>" + esc(r.note) + "</span></p>",
+      "ion-box ion-span-lg-2"
+    ));
+    cells.push(card(
+      boxHead(icon("users") + "People") +
+        '<dl class="cs-facts cs-facts--stack">' +
         "<div><dt>Responsible</dt><dd>" + esc(r.owner) + "<small>Filed the request</small></dd></div>" +
-        "<div><dt>Collected by</dt><dd>" + (loan ? esc(loan.collectedBy) + "<small>" + esc(loan.issuedAt) + "</small>" : "—<small>Not handed out yet</small>") + "</dd></div>" +
-        "<div><dt>Return by</dt><dd>" + esc(r.due) + "<small>Set by the approval</small></dd></div>" +
-        "<div><dt>Progress</dt><dd>" + esc(p.text) + progressBar(p) + "</dd></div></dl>" +
-        '<p class="cs-hint">' + icon("info") + "<span>" + esc(r.note) + "</span></p>"
-    );
-    if (s.issuing && !loan) html += card(issueForm(r), "ion-panel");
+        "<div><dt>Collected by</dt><dd>" + (loan ? esc(loan.collectedBy) + "<small>" + esc(loan.issuedAt) + "</small>" : "—<small>Not handed out yet</small>") + "</dd></div></dl>"
+    ));
+    if (s.issuing && !loan) cells.push(card(issueForm(r), "ion-box cs-span-full"));
     else {
       const used = new Set();
       const rows = r.items.map((type) => {
@@ -429,31 +463,44 @@
         if (!line) return ['<strong>' + esc(type) + "</strong>", chip("Not handed out"), "—", ""];
         used.add(line);
         const a = getAsset(line.asset);
-        if (line.back) return [itemName(a), chip("Back", "good"), "Returned " + esc(line.returnedAt) + " by " + esc(line.returnedBy), ""];
+        const name = focus && a.id === focus.id ? '<span class="cs-focusmark">' + itemName(a) + "</span>" : itemName(a);
+        if (line.back) return [name, chip("Back", "good"), "Returned " + esc(line.returnedAt) + " by " + esc(line.returnedBy), ""];
         return [
-          itemName(a),
+          name,
           isLate(loan, line) ? chip("Overdue", "danger") : chip("Out", "info"),
           "With " + esc(line.holder) + " · due " + esc(dueOf(loan, line)),
-          btn("Update", "edit-line", a.id),
+          btn("Update who has it", "edit-line", a.id),
         ];
       });
-      html += card(
-        boxHead("Kit", loan ? "Loan L-" + loan.num + " · one loan for the whole request." : "Nothing has left the desk yet.", loan ? "" : btn("Hand out kit " + icon("arrow-right"), "issue", r.id, "primary")) +
-          table("2fr 1fr 2.2fr 0.9fr", ["Item", "Status", "Details", ""], rows, "") +
+      const kit = card(
+        boxHead(icon("package") + "Kit", loan ? "Loan L-" + loan.num + " · one loan for the whole request." : "Nothing has left the desk yet.", loan ? "" : btn("Hand out kit " + icon("arrow-right"), "issue", r.id, "primary")) +
+          table("2fr 1fr 2fr 1.2fr", ["Item", "Status", "Details", ""], rows, "") +
           (s.editLine && loan && loan.lines.some((l) => l.asset === s.editLine && !l.back)
             ? holderForm(loan, loan.lines.filter((l) => l.asset === s.editLine), "edit")
             : ""),
-        "ion-panel"
+        "ion-box cs-span-full"
       );
+      // Opened from Out right now, the kit (with the clicked item highlighted) comes first.
+      if (s.mode === "track") cells.unshift(kit);
+      else cells.push(kit);
     }
     const related = messages.filter((m) => m.req === r.id && m.phase <= s.phase);
-    if (related.length) html += card(boxHead("Messages about this request") + related.slice().reverse().map(message).join(""), "ion-panel");
-    return html;
+    cells.push(card(
+      boxHead(icon("messages-square") + "Messages") + (related.length ? related.slice().reverse().map(message).join("") : '<p class="cs-empty">No messages about this request.</p>'),
+      "ion-box ion-span-lg-2"
+    ));
+    cells.push(card(
+      boxHead(icon("clock") + "Dates") +
+        '<dl class="cs-facts cs-facts--stack">' +
+        "<div><dt>Return by</dt><dd>" + esc(r.due) + "<small>Set by the approval</small></dd></div>" +
+        "<div><dt>Handed out</dt><dd>" + (loan ? esc(loan.issuedAt) + "<small>Loan L-" + loan.num + "</small>" : "—<small>Waiting for pickup</small>") + "</dd></div></dl>"
+    ));
+    return html + '<div class="ion-bento cs-bento">' + cells.join("") + "</div>";
   }
 
-  /* ---------- Take back ---------- */
+  /* ---------- Returns ---------- */
   function takeBack() {
-    let html = head("Take <span class=\"ion-accent\">back</span>", "Type the code printed on each item’s label. The app finds the loan it belongs to.");
+    let html = head("Return <span class=\"ion-accent\">items</span>", "Type the code printed on each item’s label. The app finds the loan it belongs to.");
     for (const num of s.followUp.slice(0, 1)) {
       const loan = getLoan(num), r = getReq(loan.req);
       const rest = loan.lines.filter((l) => !l.back);
@@ -479,7 +526,7 @@
         table("2fr 1.8fr 1.2fr 0.6fr", ["Item", "Request", "Currently with", ""],
           s.basket.map((code) => {
             const o = openLine(code);
-            return [itemName(getAsset(code)), esc(getReq(o.loan.req).event) + '<small class="cs-sub">Responsible: ' + esc(getReq(o.loan.req).owner) + "</small>", esc(o.line.holder),
+            return [itemName(getAsset(code)), reqLink(getReq(o.loan.req), "track", code) + '<small class="cs-sub">Responsible: ' + esc(getReq(o.loan.req).owner) + "</small>", esc(o.line.holder),
               '<button type="button" class="ion-icon-btn" data-action="remove-code" data-val="' + code + '" aria-label="Remove ' + code + '">' + icon("x") + "</button>"];
           }), "") +
         '<form data-confirm-return class="cs-confirm"><div class="cs-form">' +
@@ -490,7 +537,7 @@
     html += card(
       boxHead("Out right now") +
         table("2fr 1.8fr 1.2fr 1fr", ["Item", "Request", "With", "Due back"],
-          openLines().map(({ loan, line }) => [itemName(getAsset(line.asset)), esc(getReq(loan.req).event), esc(line.holder), esc(dueOf(loan, line)) + (isLate(loan, line) ? " " + chip("Overdue", "danger") : "")]),
+          openLines().map(({ loan, line }) => [itemName(getAsset(line.asset)), reqLink(getReq(loan.req), "track", line.asset), esc(line.holder), esc(dueOf(loan, line)) + (isLate(loan, line) ? " " + chip("Overdue", "danger") : "")]),
           "Everything is back on the shelf."),
       "ion-panel",
       ' data-tour="out"'
@@ -506,7 +553,7 @@
     const rows = assets.filter((a) => s.filter === "All items" || status(a) === s.filter).map((a) => {
       const st = status(a), o = openLine(a.id);
       return [itemName(a), esc(a.model), chip(st, st === "On shelf" ? "good" : st === "In repair" ? "danger" : "info"),
-        o ? "With " + esc(o.line.holder) + " · " + esc(getReq(o.loan.req).event) : st === "In repair" ? "Workshop" : "Bin " + esc(a.bin)];
+        o ? '<span class="cs-sub cs-sub--inline">With ' + esc(o.line.holder) + "</span>" + reqLink(getReq(o.loan.req), "track", a.id) : st === "In repair" ? "Workshop" : "Bin " + esc(a.bin)];
     });
     return head("Inventory", "Every physical unit and where it is right now.") + card('<div class="cs-boxhead">' + seg + "</div>" + table("2fr 1.4fr 1fr 2fr", ["Item", "Model", "Status", "Where now"], rows, "Nothing matches this filter."), "ion-panel");
   }
@@ -531,8 +578,8 @@
 
   const screens = {
     Today: today,
-    Requests: () => (s.selected ? requestDetail(getReq(s.selected)) : requestList()),
-    "Take back": takeBack,
+    Requests: requestList,
+    "Returns": takeBack,
     Inventory: inventory,
     "Desk book": deskbook,
     "Candidate brief": brief,
@@ -556,10 +603,18 @@
   function paint() {
     q("[data-clock]").textContent = shifts[s.phase].time;
     syncNav();
+    q("[data-sidebar-title]").textContent = s.tab;
+    q('.cs-sideaction[data-action="tour"]').classList.toggle("is-new", !walkthroughUsed);
     const outCount = openLines().length;
     q("[data-out-count]").textContent = outCount || "";
     const page = q("[data-page]");
     page.innerHTML = backBar() + screens[s.tab]();
+    const dlg = q("[data-modal]");
+    if (s.selected && getReq(s.selected)) {
+      dlg.innerHTML = '<div class="cs-modal__body">' + requestModal(getReq(s.selected)) + "</div>";
+      if (!dlg.open) dlg.showModal();
+      if (window.Ion) Ion.init(dlg);
+    } else if (dlg.open) dlg.close();
     q("[data-confirm]").innerHTML = confirmBanner();
     const next = shifts[s.phase].next;
     const advance = q('.ion-shell__header [data-action="advance"]');
@@ -594,31 +649,53 @@
     s.error = null;
   };
 
-  /* ---------- Navigation history (Back link on every screen) ---------- */
-  const viewName = (v) => (v.selected ? getReq(v.selected).event : v.tab);
-  function setView(tab, selected = "") {
-    s.tab = tab;
-    s.selected = selected;
+  /* ---------- Navigation: screens with a Back link; requests open in a popup ---------- */
+  function startIssue(r) {
+    const named = members(r.club).find((p) => p !== r.owner && messages.some((m) => m.req === r.id && m.phase <= s.phase && m.text.includes(p)));
+    s.issuing = true;
+    s.warned = false;
+    s.draft = {
+      who: named || "",
+      suggested: named || "",
+      units: r.items.map((type) => (assets.find((a) => a.type === type && status(a) === "On shelf") || { id: "" }).id),
+    };
+  }
+  // The popup opens in a mode that matches where it was opened from:
+  // "handout" (Pickups waiting), "track" (Out right now) or "" (Requests list, Desk book).
+  function openModal(reqId, mode = "", asset = "") {
+    closeModal();
+    s.selected = reqId;
+    s.mode = mode;
+    s.focusAsset = asset;
+    if (mode === "handout" && !loanFor(reqId)) startIssue(getReq(reqId));
+  }
+  function closeModal() {
+    s.selected = "";
+    s.mode = "";
+    s.focusAsset = "";
     s.issuing = false;
+    s.draft = null;
     s.editLine = "";
   }
-  function go(tab, selected = "") {
-    if (s.tab === tab && s.selected === selected) return;
-    s.history.push({ tab: s.tab, selected: s.selected });
-    if (s.history.length > 20) s.history.shift();
-    setView(tab, selected);
+  function setView(tab) {
+    closeModal();
+    s.tab = tab;
   }
-  // Where Back leads: the screen you came from, else the request list (from a request), else Today.
+  function go(tab) {
+    if (s.tab === tab && !s.selected) return;
+    if (s.tab !== tab) {
+      s.history.push(s.tab);
+      if (s.history.length > 20) s.history.shift();
+    }
+    setView(tab);
+  }
+  // Where Back leads: the screen you came from, else Today.
   function backTarget() {
-    const last = s.history[s.history.length - 1];
-    if (last) return last;
-    if (s.selected) return { tab: s.tab, selected: "" };
-    if (s.tab !== "Today") return { tab: "Today", selected: "" };
-    return null;
+    return s.history[s.history.length - 1] || (s.tab !== "Today" ? "Today" : "");
   }
   function backBar() {
     const t = backTarget();
-    return t ? '<div class="cs-back"><button type="button" class="cs-backlink" data-action="back">' + icon("arrow-left") + "Back to " + esc(viewName(t)) + "</button></div>" : "";
+    return t ? '<div class="cs-back"><button type="button" class="cs-backlink" data-action="back">' + icon("arrow-left") + "Back to " + esc(t) + "</button></div>" : "";
   }
 
   /* ---------- Actions ---------- */
@@ -684,8 +761,7 @@
       num, req: r.id, collectedBy: d.who, issuedAt: shifts[s.phase].short,
       lines: chosen.map(([, id]) => ({ asset: id, back: false, holder: d.who, expected: "", returnedAt: "", returnedBy: "" })),
     });
-    s.issuing = false;
-    s.draft = null;
+    closeModal(); // done: back to the screen it was opened from, with Undo in the status line
     s.warned = false;
     s.notice = "Handed out " + chosen.length + " item" + (chosen.length > 1 ? "s" : "") + " to " + d.who + " on loan L-" + num + ". " + r.owner + " stays responsible.";
   }
@@ -736,6 +812,8 @@
         break;
       }
       case "tour":
+        markWalkthroughUsed();
+        closeModal();
         goToStep(0);
         break;
       case "tour-next":
@@ -762,27 +840,25 @@
         const t = backTarget();
         if (!t) return;
         s.history.pop();
-        setView(t.tab, t.selected);
+        setView(t);
         break;
       }
       case "open-req":
-        go("Requests", v);
+        openModal(v, b.dataset.mode || "", b.dataset.asset || "");
         break;
-      case "issue": {
-        const r = getReq(v);
-        const named = members(r.club).find((p) => p !== r.owner && messages.some((m) => m.req === r.id && m.phase <= s.phase && m.text.includes(p)));
-        s.issuing = true;
-        s.warned = false;
-        s.draft = {
-          who: named || "",
-          suggested: named || "",
-          units: r.items.map((type) => (assets.find((a) => a.type === type && status(a) === "On shelf") || { id: "" }).id),
-        };
+      case "close-modal":
+        closeModal();
         break;
-      }
+      case "issue":
+        startIssue(getReq(v));
+        break;
       case "cancel-issue":
-        s.issuing = false;
-        s.draft = null;
+        // Opened just to hand out: cancelling closes the popup. Otherwise go back to the kit view.
+        if (s.mode === "handout") closeModal();
+        else {
+          s.issuing = false;
+          s.draft = null;
+        }
         break;
       case "edit-line":
         s.editLine = v;
@@ -799,6 +875,19 @@
       default:
         return;
     }
+    commit();
+  });
+
+  // Popup: Esc and a click on the backdrop close it.
+  const dlg = q("[data-modal]");
+  dlg.addEventListener("cancel", (e) => {
+    e.preventDefault();
+    closeModal();
+    commit();
+  });
+  dlg.addEventListener("click", (e) => {
+    if (e.target !== dlg) return;
+    closeModal();
     commit();
   });
 
@@ -858,7 +947,6 @@
       ...original(),
       tab: d.tab,
       phase: d.phase,
-      selected: d.selected || "",
       filter: ["All items", "On shelf", "On loan", "In repair"].includes(d.filter) ? d.filter : "All items",
       loans: d.loans.map((l) => ({ ...l, lines: l.lines.map((x) => ({ ...x })) })),
       notice: "Welcome back. Your sample shift was restored.",
