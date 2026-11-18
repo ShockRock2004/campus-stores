@@ -16,11 +16,13 @@ Each browser stores its own sample shift locally when browser storage is availab
 
 ## Source
 
-- `index.html` contains the desk layout, candidate brief, and bundled icons.
-- `app.js` contains the sample records and interactions.
-- `styles.css` defines the desktop and mobile layouts.
+- `index.html` contains the desk layout (sidebar shell, header, status line).
+- `app.js` contains the sample records, the screens and interactions.
+- `styles.css` adds the pieces the UI kit doesn't provide: form controls, status chips, progress bars, inline errors and the mobile table layout.
+- `ion/` is the Ion UI kit (cards, tables, buttons, sidebar, segmented control, light/dark mode).
+- `third-party/lucide.min.js` bundles the Lucide icons so the app works offline. Fonts load from Google Fonts and fall back to system fonts when offline.
 
-Icon license notices are in [third-party/lucide-LICENSE.txt](third-party/lucide-LICENSE.txt).
+License notices are in [third-party/lucide-LICENSE.txt](third-party/lucide-LICENSE.txt) and [third-party/ion-NOTICE.md](third-party/ion-NOTICE.md).
 
 
 ## Submit your work
